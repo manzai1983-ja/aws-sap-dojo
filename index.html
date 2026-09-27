@@ -1296,6 +1296,7 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <tr><td>AWS Managed Microsoft AD</td><td>AWS上の本物のAD。オンプレADと<b>信頼関係</b>、RDS for SQL Server・FSx for WindowsのWindows認証に</td></tr>
 <tr><td>Simple AD</td><td>小規模・低コスト、Samba互換。信頼関係なし</td></tr>
 </table></div>
+<p>メリット・デメリットやIAM Identity Centerとの関係は <b>補講5「ID基盤」</b> の比較表を参照。</p>
 <h3>ロードバランサーの使い分け</h3>
 <ul>
 <li><b>ALB</b>：L7、パス/ホストベース、認証、WAF。<b>NLB</b>：L4（TCP/UDP/TLS）、AZごとの固定IP/EIP、超低遅延、送信元IP保持、PrivateLinkの裏側。<b>GWLB</b>：GENEVEでサードパーティ製ファイアウォール等を<b>透過的に挿入</b>しスケール。</li>
@@ -1310,6 +1311,119 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <li><b>Local Zones</b>：大都市近郊で1桁ミリ秒。<b>Wavelength</b>：5G網の中。</li>
 <li><b>WorkSpaces / AppStream 2.0</b>：仮想デスクトップ / アプリケーションストリーミング。</li>
 </ul>
+</article>
+
+<article class="chapter" data-id="s5" data-code="補5" data-group="補講（2026年の出題傾向）" data-title="ID基盤：Directory ServiceとIAM Identity Center" data-tasks="1.2" data-x="hyb">
+<header><div class="code">SUPPLEMENT 5</div><h2>ID基盤：Directory Service と IAM Identity Center</h2><p class="lede">Managed Microsoft AD・AD Connector・IAM Identity Center と、その設定用語（機能セット・アイデンティティソース・アクセス許可セット）を比較表で整理する。</p></header>
+<div class="why"><div class="label">この章の考え方</div>ID関連の選択肢は2つの層に分けると迷わない。<b>①ユーザーとパスワードをどこで管理するか（ディレクトリの層：AD、Entra ID、Okta など）</b>と、<b>②そのユーザーにAWSのどのアカウントで何をさせるか（AWSアクセスの層：IAM Identity Center）</b>。Managed Microsoft AD と AD Connector は①をAWSにつなぐ部品、IAM Identity Center は②の司令塔。アイデンティティソースは①と②をつなぐ設定、アクセス許可セットは②で配る権限のテンプレート、と覚える。</div>
+
+<div class="part">全体像</div>
+<div class="tbl"><table>
+<tr><th>① ユーザーの置き場所（ディレクトリ）</th><th>つなぐ部品</th><th>アイデンティティソースの設定</th><th>② AWSアクセスの層</th></tr>
+<tr><td>オンプレAD</td><td>AD Connector（中継）</td><td rowspan="2">Active Directory</td><td rowspan="4">IAM Identity Center（組織は<b>すべての機能</b>）<br>→ アクセス許可セットを割り当て<br>→ 各アカウントにIAMロールを自動作成</td></tr>
+<tr><td>オンプレAD（または無し）</td><td>Managed Microsoft AD（信頼関係）</td></tr>
+<tr><td>Entra ID／Okta など</td><td>SAML 2.0（認証）＋SCIM（同期）</td><td>外部IdP</td></tr>
+<tr><td>どれも無い</td><td>—</td><td>Identity Centerディレクトリ</td></tr>
+</table></div>
+
+<h3>① Directory Service の3種類（＋EC2上の自前AD）</h3>
+<div class="tbl"><table>
+<tr><th>観点</th><th>AWS Managed Microsoft AD</th><th>AD Connector</th><th>Simple AD</th><th>EC2上に自前でAD構築</th></tr>
+<tr><td>正体</td><td>AWSが運用する<b>本物のWindows Server AD</b>（DC 2台以上をマルチAZに配置）</td><td>オンプレADへ認証要求を中継する<b>プロキシ</b>。ディレクトリ情報を持たない</td><td>Samba 4ベースのAD<b>互換</b>ディレクトリ</td><td>EC2にWindows Serverを立ててDCを自分で構築</td></tr>
+<tr><td>メリット</td><td>・パッチ・バックアップ・DC冗長化はAWS任せ<br>・オンプレADと<b>信頼関係</b>を結べる<br>・<b>スキーマ拡張</b>、グループポリシー、LDAPS、MFA（RADIUS）<br>・マルチリージョンレプリケーション（Enterprise）<br>・RDS for SQL Server、FSx for Windows、WorkSpacesなど<b>AD必須サービス</b>を支えられる</td><td>・<b>クラウドにID情報を一切置かない</b>（キャッシュもしない）<br>・既存ADのユーザー・グループ・パスワードポリシーをそのまま使う<br>・ADの運用は増えない、料金も比較的安い</td><td>・最も安価で手軽<br>・小規模な検証やLinux/WorkSpacesのドメイン参加に十分</td><td>・ドメイン管理者権限を含め<b>完全な制御</b><br>・既存ドメインのDCを増設する形にもできる</td></tr>
+<tr><td>デメリット</td><td>・<b>ドメイン管理者（Domain Admins）権限はもらえない</b>（委任されたOUのみ管理）<br>・Simple ADやAD Connectorより高い<br>・スキーマ拡張は元に戻せない</td><td>・<b>オンプレADやVPN/DXが落ちると認証できない</b><br>・DX/VPN経由のネットワーク遅延の影響を受ける<br>・信頼関係、スキーマ拡張、RDS for SQL Serverのドメイン参加などは不可</td><td>・<b>信頼関係なし</b>、MFAなし、スキーマ拡張なし<br>・規模の上限が小さい（Small／Large）<br>・RDS for SQL Serverなどでは使えない</td><td>・DCの冗長化・パッチ・バックアップ・監視をすべて自分で行う<br>・運用負荷が最大</td></tr>
+<tr><td>ユースケース例</td><td>・AWS上のWindowsサーバー群とFSx for Windowsをドメイン参加させ、オンプレADとの<b>双方向信頼</b>で社員が同じIDでアクセス<br>・オンプレADを持たない会社が、AWS上で新たにADを持つ</td><td>・「<b>ディレクトリ情報をクラウドに複製してはならない</b>」規定のもとで、WorkSpacesやIAM Identity Centerに社員のADアカウントでログイン</td><td>・50人規模の検証環境で、LinuxインスタンスとWorkSpacesを低コストでドメイン参加</td><td>・Managed ADで足りない要件（Domain Admins権限が必須のパッケージ製品など）がある</td></tr>
+<tr><td>試験のキーワード</td><td>「信頼関係」「スキーマ拡張」「SQL Server Windows認証」「AD対応アプリをAWSへ移行」</td><td>「クラウドにディレクトリを置かない」「既存ADをそのまま」「キャッシュしない」</td><td>「低コスト」「小規模」「高度な機能不要」</td><td>「ドメイン管理者権限が必要」（まれ）</td></tr>
+</table></div>
+<div class="case"><div class="label">Managed AD と オンプレAD の信頼関係の方向</div>
+<ul>
+<li><b>一方向（AWS側がオンプレを信頼）</b>：オンプレのユーザーが、AWS上のリソース（FSx、EC2）にアクセスする典型パターン。</li>
+<li><b>双方向</b>：互いのリソースにアクセスさせる場合。<b>Amazon Enterprise Applications（WorkSpacesなど）でオンプレユーザーを使う</b>ときは双方向信頼が必要になるケースがある。</li>
+<li>AD Connector は信頼関係を結ばない。そもそもAWS側にドメインが存在しない。</li>
+</ul></div>
+
+<h3>② IAM Identity Center と類似の仕組み</h3>
+<div class="tbl"><table>
+<tr><th>観点</th><th>IAM Identity Center</th><th>IAMユーザー（アカウントごと）</th><th>IAMのSAML/OIDCフェデレーション（アカウントごとにIdPを登録）</th><th>Amazon Cognito</th></tr>
+<tr><td>対象</td><td><b>社員（ワークフォース）</b>が<b>複数アカウント</b>と業務アプリにSSO</td><td>1アカウント内の人・プログラム</td><td>社員が特定アカウントのロールへSSO</td><td><b>自社アプリの顧客（エンドユーザー）</b></td></tr>
+<tr><td>メリット</td><td>・Organizationsと統合し、<b>数百アカウントを1か所で割り当て</b><br>・<b>一時的な認証情報のみ</b>（CLIも <code>aws sso login</code>）<br>・SCIMでユーザー・グループの自動同期<br>・アクセスポータル1つで全アカウントへ<br>・ABAC（ユーザー属性をセッションタグに）<br>・無料</td><td>・設定が単純<br>・IdPが無くても使える</td><td>・Identity Centerを使えない事情（組織外アカウントなど）でも可能<br>・ロールの信頼ポリシーを細かく制御</td><td>・サインアップ／ソーシャルログイン<br>・数百万ユーザー規模<br>・IDプールでAWS認証情報も発行</td></tr>
+<tr><td>デメリット</td><td>・組織インスタンスは<b>Organizationsのすべての機能</b>が前提<br>・アイデンティティソースは<b>同時に1つだけ</b><br>・自動作成されたロールはIAM側で直接編集できない<br>・インスタンスは1つのホームリージョン（障害時の備えが必要）</td><td>・<b>長期のアクセスキーとパスワード</b>が各アカウントに散在<br>・入退社のたびに全アカウントで作業、削除漏れ</td><td>・<b>アカウントごとにIdP登録とロール作成</b>が必要で、数が増えると破綻<br>・IdP側のアプリ設定もアカウント数だけ増える</td><td>・社員のAWSコンソールアクセス用途ではない</td></tr>
+<tr><td>ユースケース例</td><td>・Entra IDの社員500人が、20アカウントに部署ごとの権限でSSO<br>・開発者にCLI用の短期認証情報を配る</td><td>・IdPを持たない個人・小規模の単一アカウント<br>・ブレークグラス用の緊急ユーザー（MFA必須・金庫管理）</td><td>・既存の構成で、少数アカウントだけIdPと直結している</td><td>・ECサイトの会員ログイン、モバイルアプリからS3へ直接アップロード</td></tr>
+<tr><td>試験のキーワード</td><td>「複数アカウント」「一元的に」「既存IdP」「運用負荷最小」</td><td>選ぶのは「緊急用」くらい。「長期キー」は基本的に不正解側</td><td>「単一アカウント」「特定ロール」</td><td>「モバイル」「顧客」「ソーシャルログイン」</td></tr>
+</table></div>
+
+<h3>③ 機能セット（AWS Organizations）</h3>
+<p>Organizationsの組織には2種類の<b>機能セット</b>がある。IAM Identity Center（組織インスタンス）、SCP/RCP、委任管理者、サービスの組織への一括展開は、<b>すべて「すべての機能」が前提</b>。</p>
+<div class="tbl"><table>
+<tr><th>観点</th><th>すべての機能（All features）</th><th>一括請求機能（Consolidated billing）のみ</th></tr>
+<tr><td>できること</td><td>一括請求に加えて、SCP・RCP・タグポリシー・バックアップポリシー、<b>IAM Identity Center</b>、Control Tower、委任管理者、GuardDuty・Security Hub・CloudTrail（組織の証跡）などの組織統合</td><td>請求の一本化、ボリューム割引・RI/Savings Plansの共有のみ</td></tr>
+<tr><td>メリット</td><td>組織としてガバナンスを効かせられる。新しいアカウントにも自動で統制が効く</td><td>メンバーアカウントの自律性を損なわない。導入が軽い</td></tr>
+<tr><td>デメリット</td><td>有効化には<b>既存の全メンバーアカウントの承認</b>が必要（招待で参加したアカウント）。管理アカウントに強い権限が集中</td><td>SCPも組織単位の統制もできない</td></tr>
+<tr><td>ユースケース例</td><td>ランディングゾーンを作ってセキュリティ統制とSSOを一元化したい</td><td>買収した子会社のアカウントを、請求だけまとめたい</td></tr>
+<tr><td>切り替え</td><td colspan="2">一括請求のみ → すべての機能 には<b>移行できる</b>（全メンバーの承認後）。逆方向には<b>戻せない</b>。組織を作ると既定は「すべての機能」。</td></tr>
+</table></div>
+<div class="case"><div class="label">関連：Identity Center の「組織インスタンス」と「アカウントインスタンス」</div>
+<ul>
+<li><b>組織インスタンス</b>：管理アカウント（または委任管理者）で有効化。組織内の全アカウントへのアクセス許可セットの割り当てができる。通常はこちら。</li>
+<li><b>アカウントインスタンス</b>：単一アカウントに閉じたインスタンス。Amazon Q Developer などの<b>AWSマネージドアプリケーションへのサインイン</b>用で、<b>AWSアカウントへのアクセス（アクセス許可セット）は管理できない</b>。</li>
+</ul>
+<p>同じ「機能セット」という言葉は、Managed Microsoft AD のエディション（<b>Standard</b>：小〜中規模／<b>Enterprise</b>：大規模・マルチリージョンレプリケーション）と混同しやすいので注意。</p></div>
+
+<h3>④ アイデンティティソース（IAM Identity Center）</h3>
+<p>Identity Centerが「ユーザーとグループをどこから持ってくるか」の設定。<b>同時に選べるのは1つ</b>。</p>
+<div class="tbl"><table>
+<tr><th>観点</th><th>Identity Center ディレクトリ（既定）</th><th>Active Directory（Managed Microsoft AD／AD Connector経由）</th><th>外部IdP（Entra ID、Okta、Google Workspace など）</th></tr>
+<tr><td>ユーザーの管理場所</td><td>Identity Centerの中に直接作成</td><td>オンプレADまたはManaged AD</td><td>外部IdP</td></tr>
+<tr><td>認証（パスワード・MFA）</td><td>Identity Center（MFAも内蔵）</td><td>AD（MFAはIdentity Center側またはRADIUS）</td><td><b>外部IdP側</b>（SAML 2.0）。条件付きアクセスなどIdPの機能をそのまま使える</td></tr>
+<tr><td>ユーザー・グループの同期</td><td>不要</td><td><b>AD同期（設定可能なAD同期）</b>で対象のユーザー・グループを取り込む</td><td><b>SCIM</b>で自動プロビジョニング（手動作成も可）。SAMLだけではユーザーは自動作成されない</td></tr>
+<tr><td>メリット</td><td>・追加のIdPが不要で最速で始められる<br>・無料</td><td>・社員が普段のWindowsログインと同じID<br>・ADの退職処理がそのままAWSにも反映</td><td>・<b>社内SaaSと同じSSO体験</b><br>・MFA・デバイス条件などをIdPで一元管理<br>・入退社がIdPで完結</td></tr>
+<tr><td>デメリット</td><td>・社内の他システムとIDが二重管理になる<br>・入退社処理を別途行う必要</td><td>・AD Connector経由ならオンプレADとネットワークの可用性に依存<br>・Directory Serviceの費用がかかる</td><td>・IdP側の設定（SAMLアプリ、SCIMトークンの期限管理）が必要<br>・IdP障害時はサインイン不可 → ブレークグラス必須</td></tr>
+<tr><td>ユースケース例</td><td>スタートアップ、IdPを持たない小規模組織</td><td>オンプレADが正のID基盤で、Entra ID等を持っていない企業</td><td>Microsoft 365（Entra ID）やOktaを全社導入済みの企業</td></tr>
+</table></div>
+<div class="tip"><div class="label">切り替え時の注意</div><ul>
+<li>アイデンティティソースを変更すると、<b>既存のユーザー・グループやアクセス許可セットの割り当てが削除される場合がある</b>（組み合わせによる）。移行時は割り当ての再作成を計画する。</li>
+<li>ADとEntra IDの両方を持つ企業は、「Entra Connect でADをEntra IDに同期 → Entra IDを外部IdPとして接続」という形がよく選ばれる。</li>
+</ul></div>
+
+<h3>⑤ アクセス許可セット（IAM Identity Center）</h3>
+<p>アクセス許可セットは<b>「IAMポリシーの束＋セッション設定」のテンプレート</b>。「ユーザー／グループ × AWSアカウント × アクセス許可セット」を割り当てると、Identity Centerがそのアカウントに <code>AWSReservedSSO_&lt;セット名&gt;_&lt;ランダム&gt;</code> というIAMロールを自動作成する。サインインしたユーザーはこのロールを引き受け、一時的な認証情報で操作する。</p>
+<div class="tbl"><table>
+<tr><th>観点</th><th>アクセス許可セット</th><th>各アカウントで手作りするIAMロール</th><th>IAMグループ＋IAMユーザー</th></tr>
+<tr><td>中身</td><td>AWS管理ポリシー、<b>カスタマー管理ポリシーの参照</b>（名前で参照）、インラインポリシー、<b>アクセス許可の境界</b>、<b>セッション時間（1〜12時間）</b>、リレー状態（開く画面）</td><td>信頼ポリシー＋権限ポリシー</td><td>ポリシーをグループに付与し、ユーザーを所属させる</td></tr>
+<tr><td>メリット</td><td>・1回定義すれば<b>何百アカウントにも同じ権限を配布</b>、更新も一括で再プロビジョニング<br>・IdPのグループと組み合わせて部署単位で割り当て<br>・ロールの作成・削除を自動化</td><td>・信頼ポリシーやタグを自由に設計<br>・アプリ、クロスアカウント、サービス用途にも使える</td><td>・単一アカウント内なら直感的</td></tr>
+<tr><td>デメリット</td><td>・自動作成ロールを<b>IAMで直接編集しても上書きされる</b>（変更はセット側で）<br>・カスタマー管理ポリシーは<b>各アカウントに同じ名前で事前に存在</b>している必要がある<br>・委任管理者は<b>管理アカウントに割り当てたセットを変更できない</b></td><td>・アカウント数だけ作成と保守が必要<br>・人ごとのSSOとの対応付けは別途必要</td><td>・長期認証情報、アカウントをまたげない</td></tr>
+<tr><td>ユースケース例</td><td>・「ReadOnly」「Developer」「NetworkAdmin」を定義し、<code>Dev</code> グループには開発アカウントでDeveloper、本番アカウントではReadOnlyを割り当て</td><td>・EC2・Lambdaの実行ロール<br>・SaaSベンダー向けの外部ID付きクロスアカウントロール</td><td>・（非推奨）IdPの無い単一アカウント</td></tr>
+</table></div>
+<div class="case"><div class="label">ユースケース：部署ごとの権限と本番の最小権限</div>
+<ol>
+<li>アイデンティティソースを Entra ID に設定し、SCIMで <code>sg-dev</code>、<code>sg-sre</code> グループを同期。</li>
+<li>アクセス許可セット <code>Developer</code>（PowerUserAccess＋境界 <code>DevBoundary</code>、セッション8時間）と <code>ReadOnly</code>（ViewOnlyAccess、セッション4時間）を作成。</li>
+<li><code>sg-dev</code> に「開発OUのアカウント × Developer」「本番OUのアカウント × ReadOnly」を割り当て。<code>sg-sre</code> には本番で <code>ProdOperator</code> を割り当て。</li>
+<li>本番の強い権限は常時付与せず、<b>申請ベースの一時昇格</b>（TEAM などの一時的な権限付与の仕組み）で必要時のみ付与。</li>
+<li>SCPで「組織を離脱しない」「CloudTrailを止めない」などを別途ガード。<b>アクセス許可セットで許可してもSCPで拒否されれば実行できない</b>。</li>
+</ol></div>
+
+<h3>どれを選ぶか（判断フロー）</h3>
+<div class="tbl"><table>
+<tr><th>要件（問題文のヒント）</th><th>選ぶもの</th></tr>
+<tr><td>社員に<b>複数アカウント</b>へのSSOを、運用負荷を最小に</td><td>IAM Identity Center ＋ アクセス許可セット</td></tr>
+<tr><td>全社で Entra ID／Okta を利用中</td><td>アイデンティティソース＝外部IdP（SAML＋SCIM）</td></tr>
+<tr><td>オンプレADのIDを使う。<b>クラウドにディレクトリ情報を置かない</b></td><td>AD Connector（→ アイデンティティソース＝Active Directory）</td></tr>
+<tr><td>AWS上のWindowsワークロード・FSx for Windows・RDS for SQL ServerでAD認証、オンプレADとも連携</td><td>Managed Microsoft AD ＋ 信頼関係</td></tr>
+<tr><td>AD連携の可用性をオンプレから切り離したい（回線断でも認証継続）</td><td>Managed Microsoft AD（AD Connectorは不可）</td></tr>
+<tr><td>低コストで小規模、信頼関係不要</td><td>Simple AD</td></tr>
+<tr><td>Identity Centerを有効化できない</td><td>Organizationsが<b>一括請求のみ</b>になっていないか確認 → すべての機能を有効化</td></tr>
+<tr><td>全アカウントの権限を1か所で変更し、一斉に反映</td><td>アクセス許可セットを編集して再プロビジョニング</td></tr>
+<tr><td>一般消費者向けアプリのログイン</td><td>Cognito（Identity Centerではない）</td></tr>
+</table></div>
+<div class="tip"><div class="label">試験のツボ</div><ul>
+<li>AD Connector ＝「<b>中継するだけ</b>」。キャッシュしない、信頼関係なし、オンプレが落ちたら認証も落ちる。</li>
+<li>Managed Microsoft AD でも <b>Domain Admins 権限はもらえない</b>。それが必須ならEC2上の自前AD。</li>
+<li>Identity Center の外部IdP連携では、<b>SAMLは認証、SCIMはユーザー・グループの同期</b>と役割が別。</li>
+<li>アクセス許可セットで作られたロールをIAMで直接編集する選択肢は誤り。セットを更新する。</li>
+<li>カスタマー管理ポリシーを参照するセットは、<b>全対象アカウントに同名ポリシーを事前配布</b>（CloudFormation StackSets など）してから割り当てる。</li>
+<li>管理アカウントは委任管理者から管理できないので、Identity Centerの日常運用は<b>委任管理者のアカウント</b>で行い、管理アカウントへのアクセスは最小限に。</li>
+</ul></div>
 </article>
 
 <article class="chapter" data-id="cx1" data-code="付録A" data-group="付録" data-title="頻出サービス比較早見表" data-tasks="">
@@ -1328,6 +1442,8 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <tr><td>ElastiCache vs DAX</td><td>汎用・任意のDB前段 → ElastiCache／DynamoDB専用・コード変更最小 → DAX</td></tr>
 <tr><td>署名付きURL vs 署名付きCookie</td><td>単一ファイル → URL／複数ファイル → Cookie</td></tr>
 <tr><td>Parameter Store vs Secrets Manager</td><td>設定値・安価 → Parameter Store／自動ローテーション → Secrets Manager</td></tr>
+<tr><td>AD Connector vs Managed Microsoft AD vs Simple AD</td><td>クラウドに情報を置かない中継 → AD Connector／信頼関係・AD必須サービス → Managed AD／小規模・安価 → Simple AD</td></tr>
+<tr><td>IAM Identity Center vs IAMユーザー vs Cognito</td><td>社員が複数アカウントへSSO → Identity Center／緊急用のみ → IAMユーザー／アプリの顧客 → Cognito</td></tr>
 </table></div>
 </article>
 
