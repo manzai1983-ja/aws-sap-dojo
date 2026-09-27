@@ -551,6 +551,23 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <tr><td>デメリット</td><td>新しいサービスが自動的に使える状態になる</td><td><b>全階層に同じAllowが必要</b>（原則③）。許可漏れで業務が止まりやすい</td></tr>
 <tr><td>向く場面</td><td>ほとんどの組織のガードレール（リージョン制限、ログ停止の禁止など）</td><td>規制の厳しい環境、サンドボックスの利用範囲の限定</td></tr>
 </table></div>
+<div class="case"><div class="label">ユースケース：一時的に制限を外す「Transition OU」パターン</div>
+<p><b>状況</b>：全アカウントがStandard OUにあり、ルートには拒否リストのSCP（AWS Configの変更を禁止）がアタッチされている。統合した子会社のアカウントをStandard OUに入れたところ、子会社の管理者がConfigルールを更新できなくなった。既存アカウントの制限は維持し、恒常的な運用負荷も増やしたくない。</p>
+<p><b>前提</b>：<code>FullAWSAccess</code> は<b>ルート・すべてのOU・すべてのアカウントに既定で付いている</b>（新しく作ったOUにも自動で付く）。「全サービス許可のSCP」を新しく作る必要はない。</p>
+<div class="tbl"><table>
+<tr><th>段階</th><th>ルート</th><th>Standard OU</th><th>Transition OU</th><th>子会社アカウントの位置</th></tr>
+<tr><td>変更前</td><td>FullAWSAccess＋<b>拒否SCP</b></td><td>FullAWSAccess</td><td>（なし）</td><td>Standard OU（Config変更不可）</td></tr>
+<tr><td>作業中</td><td>FullAWSAccess</td><td>FullAWSAccess＋<b>拒否SCP</b></td><td>FullAWSAccess（＋Config許可SCP）</td><td>Transition OU（Config変更可）</td></tr>
+<tr><td>完了後</td><td>FullAWSAccess</td><td>FullAWSAccess＋<b>拒否SCP</b></td><td>FullAWSAccess（空のまま次回に再利用）</td><td>Standard OU（再び制限あり）</td></tr>
+</table></div>
+<ol>
+<li>ルート直下にTransition OUを作り、子会社のアカウントを移す。</li>
+<li>拒否SCPを<b>Standard OUにアタッチ → ルートからデタッチ</b>する（この順番なら既存アカウントの制限が途切れない）。</li>
+<li>既存アカウントはStandard OU経由で同じ拒否を受け続ける。Transition OUの上には拒否がないので、子会社の管理者はIAMの権限どおりに作業できる。</li>
+<li>作業が終わったらアカウントをStandard OUへ戻す。</li>
+</ol>
+<p><b>ポイント</b>：原則②のとおり、ルートに拒否が残っている限り、Transition OUでAllowを書いても制限は外れない。効いているのは<b>拒否SCPをルートからStandard OUへ下ろす</b>操作のほう。Transition OUのConfig許可SCPは、FullAWSAccessが既に付いているので厳密には無くても動く（付けても害はない）。</p>
+<p><b>誤答になりやすい選択肢</b>：Transition OUや子会社アカウントに「Configを許可するSCP」を付けるだけ（ルートの拒否は覆せない）／ルートの拒否SCPを外す（既存アカウントの制限が消える）／子会社用に拒否SCPから例外条件を毎回書き足す（恒常的な運用負荷）。</p></div>
 <div class="tip"><div class="label">試験のツボ（SCP）</div><ul>
 <li>「SCPでAllowしたのに使えない」→ IAM側に許可がない（SCPは権限を与えない）。</li>
 <li>「アカウントのSCPでAllowしたのに使えない」→ 上位のOUやルートでDenyされている、または上位でFullAWSAccessが外れている。</li>
