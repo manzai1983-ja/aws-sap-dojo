@@ -497,6 +497,65 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <tr><td>セッションポリシー</td><td>AssumeRole時に一時的に絞る</td><td>—</td></tr>
 </table></div>
 <p>明示的なDenyは常に優先。有効な権限＝SCP ∩ 境界 ∩ アイデンティティポリシー（∪ リソースポリシー）。</p>
+
+<h3>SCPの動作原理</h3>
+<p>SCPは<b>権限を与えない「フィルター」</b>。ルート → OU → アカウントの順に重なり、<b>すべての階層を通過した操作だけ</b>が、IAM（アクセス許可セット）で許可されていれば実行できる。</p>
+<div class="tbl"><table>
+<tr><th>原則</th><th>意味</th><th>例</th></tr>
+<tr><td><b>① 権限を与えない</b></td><td>SCPは上限を決めるだけ。実際に使うにはIAM側の許可が別に必要</td><td>SCPで <code>s3:*</code> を許可していても、IAMポリシーが無ければS3は使えない</td></tr>
+<tr><td><b>② 上位のDenyは覆せない</b></td><td>上の階層で拒否された操作は、下の階層でAllowを書いても取り戻せない</td><td>ルートで禁止したリージョンは、アカウントのSCPでAllowしても使えない</td></tr>
+<tr><td><b>③ 全階層で許可が必要</b></td><td>有効な範囲＝ルート ∩ OU ∩ アカウントの各SCPの積集合</td><td>OUからFullAWSAccessを外すと、配下のアカウントは何もできなくなる</td></tr>
+</table></div>
+<figure class="fig"><div class="sc"><svg class="dg" viewBox="0 0 745 275" role="img" aria-label="3つの操作がルート、OU、アカウントのSCPとIAMを順に通過する例。s3:GetObjectはすべて通過して実行できる。us-east-1でのec2:RunInstancesはルートのSCPで拒否され、アカウントでAllowしても実行できない。dynamodb:PutItemはSCPをすべて通過するが、IAMで許可がないため実行できない">
+<defs><marker id="m12" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0L10,5L0,10z"/></marker><marker id="m12a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mka" d="M0,0L10,5L0,10z"/></marker><marker id="m12n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mkn" d="M0,0L10,5L0,10z"/></marker></defs>
+<rect class="band" x="140" y="38" width="355" height="212" rx="4"/>
+<text class="tz" x="70" y="28" text-anchor="middle">操作</text><text class="tz" x="197" y="28" text-anchor="middle">ルートのSCP</text><text class="tz" x="317" y="28" text-anchor="middle">OUのSCP</text><text class="tz" x="437" y="28" text-anchor="middle">アカウントのSCP</text><text class="tz" x="557" y="28" text-anchor="middle">IAM／許可セット</text><text class="tz" x="677" y="28" text-anchor="middle">結果</text>
+<path class="ln acc" d="M130,70H143M250,70H263M370,70H383M490,70H503M610,70H623" marker-end="url(#m12a)"/>
+<path class="ln" d="M130,140H143" marker-end="url(#m12)"/>
+<path class="ln ng dash" d="M250,140H623" marker-end="url(#m12n)"/>
+<path class="ln" d="M130,210H143M250,210H263M370,210H383M490,210H503" marker-end="url(#m12)"/>
+<path class="ln ng" d="M610,210H623" marker-end="url(#m12n)"/>
+<rect class="bx" x="10" y="48" width="120" height="44" rx="4"/><text class="tl" x="70" y="67" text-anchor="middle">s3:GetObject</text><text class="ts" x="70" y="83" text-anchor="middle">東京リージョン</text>
+<rect class="bx" x="145" y="48" width="105" height="44" rx="4"/><text class="tl tok" x="197" y="67" text-anchor="middle">✓ 通過</text><text class="ts" x="197" y="83" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx" x="265" y="48" width="105" height="44" rx="4"/><text class="tl tok" x="317" y="67" text-anchor="middle">✓ 通過</text><text class="ts" x="317" y="83" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx" x="385" y="48" width="105" height="44" rx="4"/><text class="tl tok" x="437" y="67" text-anchor="middle">✓ 通過</text><text class="ts" x="437" y="83" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx" x="505" y="48" width="105" height="44" rx="4"/><text class="tl tok" x="557" y="67" text-anchor="middle">✓ 許可あり</text><text class="ts" x="557" y="83" text-anchor="middle">Allowを付与</text>
+<rect class="bx acc" x="625" y="48" width="110" height="44" rx="4"/><text class="tl tok" x="680" y="75" text-anchor="middle">実行できる</text>
+<rect class="bx" x="10" y="118" width="120" height="44" rx="4"/><text class="tl" x="70" y="137" text-anchor="middle">ec2:RunInstances</text><text class="ts" x="70" y="153" text-anchor="middle">us-east-1</text>
+<rect class="bx warn" x="145" y="118" width="105" height="44" rx="4"/><text class="tl tng" x="197" y="137" text-anchor="middle">✗ 拒否</text><text class="ts" x="197" y="153" text-anchor="middle">リージョン外をDeny</text>
+<rect class="bx ou" x="265" y="118" width="105" height="44" rx="4"/><text class="ts" x="317" y="144" text-anchor="middle">ここで止まる</text>
+<rect class="bx ou" x="385" y="118" width="105" height="44" rx="4"/><text class="tl" x="437" y="137" text-anchor="middle">Allowは無効</text><text class="ts" x="437" y="153" text-anchor="middle">上位のDenyが優先</text>
+<rect class="bx ou" x="505" y="118" width="105" height="44" rx="4"/><text class="ts" x="557" y="144" text-anchor="middle">許可があっても無効</text>
+<rect class="bx warn" x="625" y="118" width="110" height="44" rx="4"/><text class="tl tng" x="680" y="145" text-anchor="middle">実行できない</text>
+<rect class="bx" x="10" y="188" width="120" height="44" rx="4"/><text class="tl" x="70" y="207" text-anchor="middle">dynamodb:PutItem</text><text class="ts" x="70" y="223" text-anchor="middle">東京リージョン</text>
+<rect class="bx" x="145" y="188" width="105" height="44" rx="4"/><text class="tl tok" x="197" y="207" text-anchor="middle">✓ 通過</text><text class="ts" x="197" y="223" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx" x="265" y="188" width="105" height="44" rx="4"/><text class="tl tok" x="317" y="207" text-anchor="middle">✓ 通過</text><text class="ts" x="317" y="223" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx" x="385" y="188" width="105" height="44" rx="4"/><text class="tl tok" x="437" y="207" text-anchor="middle">✓ 通過</text><text class="ts" x="437" y="223" text-anchor="middle">FullAWSAccess</text>
+<rect class="bx warn" x="505" y="188" width="105" height="44" rx="4"/><text class="tl tng" x="557" y="207" text-anchor="middle">✗ 許可なし</text><text class="ts" x="557" y="223" text-anchor="middle">暗黙の拒否</text>
+<rect class="bx warn" x="625" y="188" width="110" height="44" rx="4"/><text class="tl tng" x="680" y="215" text-anchor="middle">実行できない</text>
+<text class="ts" x="317" y="266" text-anchor="middle">SCP：すべての階層を通過する必要がある（フィルター）</text>
+<text class="ts" x="557" y="266" text-anchor="middle">権限を与えるのはここ</text>
+</svg></div><figcaption><b>図1-7 SCPとIAMの関係。</b>上段はすべて通過したので実行できる。中段はルートのSCPで拒否されたため、アカウントのSCPやアクセス許可セットで許可しても実行できない（原則②）。下段はSCPをすべて通過しているが、IAM側に許可がないため実行できない（原則①）。</figcaption></figure>
+
+<div class="tbl"><table>
+<tr><th></th><th>IAM／アクセス許可セットで許可</th><th>IAMで許可なし</th></tr>
+<tr><td><b>SCPで許可</b></td><td><b>✓ 実行できる</b>（唯一のパターン）</td><td>✗ 実行できない（暗黙の拒否）</td></tr>
+<tr><td><b>SCPで拒否</b></td><td>✗ 実行できない</td><td>✗ 実行できない</td></tr>
+</table></div>
+
+<h3>拒否リスト戦略と許可リスト戦略</h3>
+<div class="tbl"><table>
+<tr><th>観点</th><th>拒否リスト（既定・推奨）</th><th>許可リスト</th></tr>
+<tr><td>仕組み</td><td>ルートやOUに既定で付いている <b>FullAWSAccess を残し</b>、禁止したい操作だけDenyのSCPを重ねる</td><td>FullAWSAccess を外し、使ってよいサービスだけAllowのSCPを付ける</td></tr>
+<tr><td>メリット</td><td>書く量が少ない。新しいサービスもすぐ使える</td><td>承認していないサービスを確実に使わせない</td></tr>
+<tr><td>デメリット</td><td>新しいサービスが自動的に使える状態になる</td><td><b>全階層に同じAllowが必要</b>（原則③）。許可漏れで業務が止まりやすい</td></tr>
+<tr><td>向く場面</td><td>ほとんどの組織のガードレール（リージョン制限、ログ停止の禁止など）</td><td>規制の厳しい環境、サンドボックスの利用範囲の限定</td></tr>
+</table></div>
+<div class="tip"><div class="label">試験のツボ（SCP）</div><ul>
+<li>「SCPでAllowしたのに使えない」→ IAM側に許可がない（SCPは権限を与えない）。</li>
+<li>「アカウントのSCPでAllowしたのに使えない」→ 上位のOUやルートでDenyされている、または上位でFullAWSAccessが外れている。</li>
+<li>SCPが効かないもの：<b>管理アカウント</b>、<b>サービスリンクロール</b>。メンバーアカウントの<b>ルートユーザーには効く</b>。</li>
+</ul></div>
 <div class="case"><div class="label">ユースケース：実際のポリシー</div>
 <b>① リージョン制限SCP</b>：東京・大阪以外でのリソース操作を拒否する。グローバルサービス（IAM等）はNotActionで対象外にし、緊急時用のロールだけは例外にする。
 <pre>{
