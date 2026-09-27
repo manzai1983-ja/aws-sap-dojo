@@ -1502,6 +1502,115 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 </ul></div>
 </article>
 
+<article class="chapter" data-id="s6" data-code="補6" data-group="補講（2026年の出題傾向）" data-title="IoTとMQTT" data-tasks="" data-x="iot">
+<header><div class="code">SUPPLEMENT 6</div><h2>IoT と MQTT</h2><p class="lede">MQTT・ブローカー・X.509証明書・AWS IoT Core・モノ（thing）の関係と、Amazon MQ や自前ブローカーとの使い分け。</p></header>
+<div class="why"><div class="label">この章の考え方</div>IoTの問題は<b>「何万台もの機器を、安全に、少ない運用でつなぐ」</b>が軸になる。機器が話す言葉が <b>MQTT</b>、それを中継するのが <b>ブローカー</b>、機器の身分証が <b>X.509証明書</b>、AWSのマネージドなブローカー兼デバイス管理が <b>AWS IoT Core</b>、その中での機器の台帳上の名前が <b>モノ（thing）</b>。「既存アプリのメッセージング移行」なら Amazon MQ、「大量のデバイス接続」なら IoT Core と切り分ける。</div>
+
+<div class="part">場面で理解する</div>
+<div class="scenes"><div class="scene"><h4>MQTT</h4><dl><dt>場面</dt><dd>全国5万台の冷蔵ショーケースから、温度を10秒ごとに送りたい。回線はLTEで不安定。</dd><dt>困りごと</dt><dd>HTTPで毎回接続すると、ヘッダーが重く電池と通信量を食う。</dd><dt>解決</dt><dd>接続を張りっぱなしにして、小さなメッセージをトピックに発行（publish）するMQTTを使う。</dd><dt class="m">メリット</dt><dd>ヘッダーが最小2バイトと軽い。サーバーからの指示も同じ接続で受け取れる（subscribe）。</dd><dt class="c">注意</dt><dd>MQTTは通信の約束事だけ。認証やデータ保存は、ブローカーや後続のサービスで作る。</dd></dl></div>
+<div class="scene"><h4>AWS IoT Core</h4><dl><dt>場面</dt><dd>その5万台を、サーバー管理なしでAWSにつなぎ、データを分析基盤へ流したい。</dd><dt>困りごと</dt><dd>自前のMQTTブローカーだと、冗長化・スケール・証明書管理を全部自分でやることになる。</dd><dt>解決</dt><dd>IoT Coreのメッセージブローカーにつなぎ、ルールエンジンでKinesisやTimestreamへ転送する。</dd><dt class="m">メリット</dt><dd>数十億台規模までマネージドでスケール。X.509による相互TLS、デバイスシャドウ、フリート管理も付いてくる。</dd><dt class="c">注意</dt><dd>QoS 2は非対応（QoS 0/1のみ）。メッセージ数に応じた従量課金。</dd></dl></div>
+<div class="scene"><h4>X.509証明書</h4><dl><dt>場面</dt><dd>工場出荷時に、機器1台ごとに「本物の自社製品」だと証明できるようにしたい。</dd><dt>困りごと</dt><dd>全台共通のパスワードだと、1台解析されると全台なりすませる。</dd><dt>解決</dt><dd>1台ごとに秘密鍵とX.509クライアント証明書を持たせ、相互TLSで接続する。</dd><dt class="m">メリット</dt><dd>1台だけ失効（無効化）でき、秘密鍵はネットワークに流れない。</dd><dt class="c">注意</dt><dd>秘密鍵はセキュアエレメントやTPMに保管する。証明書の有効期限と更新手順を設計しておく。</dd></dl></div>
+<div class="scene"><h4>RabbitMQ の MQTT プラグイン</h4><dl><dt>場面</dt><dd>社内の業務システムはRabbitMQ（AMQP）で連携している。そこに数百台の工場端末をMQTTでつなぎたい。</dd><dt>困りごと</dt><dd>MQTT用のブローカーを別に立てると、ブリッジと二重運用が必要になる。</dd><dt>解決</dt><dd>RabbitMQのMQTTプラグインを有効化し、MQTTのトピックをAMQPのトピックエクスチェンジに対応付ける。</dd><dt class="m">メリット</dt><dd>1つのブローカーで、端末（MQTT）と業務アプリ（AMQP）が同じメッセージをやりとりできる。</dd><dt class="c">注意</dt><dd>数万台以上の大規模なデバイス接続や、デバイスの証明書管理・フリート管理は得意ではない。その規模ならIoT Core。</dd></dl></div></div>
+
+<div class="part">仕組みと要点</div>
+<h3>MQTT の基本</h3>
+<div class="tbl"><table>
+<tr><th>用語</th><th>意味</th><th>押さえどころ</th></tr>
+<tr><td>パブリッシュ／サブスクライブ</td><td>送り手はトピックに発行し、受け手はトピックを購読する。送り手と受け手は互いを知らない</td><td>間に必ず<b>ブローカー</b>が入る</td></tr>
+<tr><td>トピック</td><td><code>factory/tokyo/line1/temp</code> のような <code>/</code> 区切りの階層</td><td>ワイルドカード：<code>+</code>＝1階層、<code>#</code>＝以下すべて</td></tr>
+<tr><td>QoS 0 / 1 / 2</td><td>最大1回（届かなくてもよい）／最低1回（重複あり）／ちょうど1回</td><td><b>AWS IoT Core は QoS 0 と 1 のみ</b></td></tr>
+<tr><td>保持メッセージ（retained）</td><td>トピックの最新値をブローカーが保持し、後から購読した人にすぐ渡す</td><td>「最後の設定値」を配るのに便利</td></tr>
+<tr><td>LWT（最後の遺言）</td><td>機器が異常切断したとき、ブローカーが代わりに発行するメッセージ</td><td>死活監視（オフライン検知）に使う</td></tr>
+<tr><td>永続セッション</td><td>切断中に届いたQoS 1のメッセージをブローカーが保持し、再接続時に渡す</td><td>不安定な回線向け</td></tr>
+<tr><td>ポート</td><td>1883（平文）／<b>8883（TLS）</b>／443（WebSocket、またはALPN）</td><td>ファイアウォールで443しか開いていない現場は443で接続</td></tr>
+</table></div>
+
+<h3>MQTTブローカーの選択肢（AWS IoT Core と類似サービス）</h3>
+<div class="tbl"><table>
+<tr><th>観点</th><th>AWS IoT Core</th><th>Amazon MQ（ActiveMQ）</th><th>RabbitMQ＋MQTTプラグイン</th><th>EC2上の自前ブローカー（Mosquitto、EMQX、HiveMQ など）</th></tr>
+<tr><td>正体</td><td>IoT専用のマネージドなメッセージブローカー＋デバイス管理</td><td>マネージドなActiveMQ。MQTT・AMQP・STOMP・OpenWire・JMSに対応</td><td>AMQPのブローカーに、MQTTの口を追加したもの</td><td>OSSや商用のブローカーを自分で運用</td></tr>
+<tr><td>メリット</td><td>・数十億台規模まで自動スケール、サーバー管理なし<br>・<b>X.509相互TLS</b>、IoTポリシーで台数分のアクセス制御<br>・ルールエンジンで30以上のAWSサービスへ直接転送<br>・デバイスシャドウ、ジョブ、Device Defender</td><td>・既存のActiveMQアプリを<b>コード変更なし</b>で移行<br>・MQTTとJMSなどの異なるプロトコル間で連携できる</td><td>・既存のRabbitMQ（AMQP）資産とMQTT端末を1つのブローカーで連携<br>・MQTTトピックがAMQPのルーティングキーに対応付く</td><td>・MQTTの全機能（QoS 2など）と細かい設定を自由に使える<br>・特定製品の独自機能が使える</td></tr>
+<tr><td>デメリット</td><td>・QoS 2なし、メッセージサイズ上限128KB<br>・メッセージ数の従量課金<br>・既存ブローカーからの移行時はトピック設計や認証の見直しが必要</td><td>・ブローカーのインスタンス単位の構成で、接続数に上限がある<br>・デバイス単位の証明書・フリート管理機能はない</td><td>・QoS 2は非対応（QoS 1に格下げ）<br>・大規模なデバイス接続とデバイス管理は不得意<br>・Amazon MQ for RabbitMQ の対応プロトコルはAMQP中心なので、MQTTで使えるかは最新ドキュメントで確認</td><td>・冗長化、スケール、パッチ、証明書管理をすべて自分で行う<br>・運用負荷が最大</td></tr>
+<tr><td>ユースケース例</td><td>全国のスマートメーター、車両テレマティクス、家電の遠隔操作</td><td>オンプレミスのActiveMQで動く業務アプリ群（一部MQTT）をそのままAWSへ</td><td>RabbitMQ中心の業務システムに、工場の数百台の端末を追加</td><td>特殊なMQTT拡張が必須、または閉域の小規模検証</td></tr>
+<tr><td>試験のキーワード</td><td>「数百万台のデバイス」「証明書で認証」「運用負荷最小」「デバイスの状態を保持」</td><td>「既存のActiveMQ」「JMS/AMQP/MQTTのまま」「コード変更なし」</td><td>「既存RabbitMQ」「AMQPとMQTTの相互運用」</td><td>（誤答側になりやすい）「EC2にMosquittoを構築」</td></tr>
+</table></div>
+
+<h3>AWS IoT Core の構成要素</h3>
+<figure class="fig"><div class="sc"><svg class="dg" viewBox="0 0 760 250" role="img" aria-label="デバイスは秘密鍵とX.509証明書を持ち、MQTT over TLSのポート8883でIoT Coreのデバイスゲートウェイに接続する。IoT Coreの中には、メッセージブローカー、レジストリのモノ、デバイスシャドウ、ルールエンジンがあり、ルールエンジンがKinesis、Timestream、Lambda、S3へ転送する">
+<defs><marker id="m13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0L10,5L0,10z"/></marker><marker id="m13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mka" d="M0,0L10,5L0,10z"/></marker></defs>
+<rect class="zone" x="10" y="20" width="160" height="210" rx="6"/><text class="tz" x="22" y="40">デバイス ×5万台</text>
+<rect class="zone" x="215" y="20" width="370" height="210" rx="6"/><text class="tz" x="227" y="40">AWS IoT Core</text>
+<path class="ln acc" d="M150,90H233" marker-start="url(#m13a)" marker-end="url(#m13a)"/>
+<path class="ln" d="M330,90H348" marker-end="url(#m13)"/>
+<path class="ln" d="M430,112V150" marker-end="url(#m13)"/>
+<path class="ln" d="M520,172H600M600,172V60H618M600,172V110H618M600,172V160H618M600,172V210H618" marker-end="url(#m13)"/>
+<rect class="bx" x="25" y="55" width="125" height="70" rx="4"/><text class="tl" x="87" y="78" text-anchor="middle">センサー端末</text><text class="ts" x="87" y="96" text-anchor="middle">秘密鍵（TPM内）</text><text class="ts" x="87" y="112" text-anchor="middle">X.509 証明書</text>
+<rect class="bx" x="25" y="150" width="125" height="60" rx="4"/><text class="tl" x="87" y="175" text-anchor="middle">同じ構成 ×n</text><text class="ts" x="87" y="193" text-anchor="middle">1台ごとに別の証明書</text>
+<text class="ts tac" x="192" y="80" text-anchor="middle">MQTT/TLS</text><text class="ts tac" x="192" y="108" text-anchor="middle">8883 相互TLS</text>
+<rect class="bx acc" x="235" y="65" width="95" height="50" rx="4"/><text class="tl" x="282" y="86" text-anchor="middle">ゲートウェイ</text><text class="ts" x="282" y="103" text-anchor="middle">証明書で認証</text>
+<rect class="bx" x="350" y="65" width="160" height="47" rx="4"/><text class="tl" x="430" y="85" text-anchor="middle">メッセージブローカー</text><text class="ts" x="430" y="102" text-anchor="middle">IoTポリシーで認可</text>
+<rect class="bx" x="235" y="150" width="120" height="65" rx="4"/><text class="tl" x="295" y="172" text-anchor="middle">レジストリ</text><text class="ts" x="295" y="189" text-anchor="middle">モノ（thing）</text><text class="ts" x="295" y="204" text-anchor="middle">＋デバイスシャドウ</text>
+<rect class="bx acc" x="370" y="150" width="150" height="45" rx="4"/><text class="tl" x="445" y="170" text-anchor="middle">ルールエンジン</text><text class="ts" x="445" y="186" text-anchor="middle">SELECT … FROM 'topic'</text>
+<rect class="bx" x="620" y="40" width="130" height="36" rx="4"/><text x="685" y="63" text-anchor="middle">Kinesis / Firehose</text>
+<rect class="bx" x="620" y="90" width="130" height="36" rx="4"/><text x="685" y="113" text-anchor="middle">Timestream</text>
+<rect class="bx" x="620" y="140" width="130" height="36" rx="4"/><text x="685" y="163" text-anchor="middle">Lambda / SNS</text>
+<rect class="bx" x="620" y="190" width="130" height="36" rx="4"/><text x="685" y="213" text-anchor="middle">S3 / DynamoDB</text>
+</svg></div><figcaption><b>図補6-1 AWS IoT Core の全体像。</b>デバイスは自分の秘密鍵とX.509証明書で相互TLS接続し（認証）、証明書にアタッチされたIoTポリシーで「どのトピックに発行・購読できるか」が決まる（認可）。証明書はレジストリのモノ（thing）にも関連付け、どの機器の証明書かを管理する。届いたメッセージはルールエンジンのSQLで絞り込んで、分析や通知のサービスへ直接送る。</figcaption></figure>
+<div class="tbl"><table>
+<tr><th>要素</th><th>役割</th><th>押さえどころ</th></tr>
+<tr><td>デバイスゲートウェイ／メッセージブローカー</td><td>MQTT・MQTT over WebSocket・HTTPSの接続を受ける</td><td>マネージドで自動スケール。<b>Basic Ingest</b>（<code>$aws/rules/…</code>）ならブローカーを通さずルールへ直送し、メッセージング料金を削減</td></tr>
+<tr><td><b>モノ（thing）</b></td><td>レジストリ上の「1台の機器」の登録情報（名前・タイプ・属性・グループ）</td><td>証明書をモノに<b>関連付け</b>る。ポリシー変数 <code>${iot:Connection.Thing.ThingName}</code> で「自分の名前のトピックだけ」に制限できる</td></tr>
+<tr><td>デバイスシャドウ</td><td>機器の「報告された状態（reported）」と「望ましい状態（desired）」をJSONで保持</td><td>機器がオフラインでも、アプリは状態を読み書きできる。再接続時に差分（delta）を受け取る</td></tr>
+<tr><td>ルールエンジン</td><td>SQL風の文でメッセージを選別・加工し、AWSサービスへ転送</td><td>Kinesis、Firehose、Timestream、Lambda、S3、DynamoDB、SNS、SQSなど。エラー時のアクションも設定できる</td></tr>
+<tr><td>IoTポリシー</td><td>証明書（またはCognito ID）に付ける認可ポリシー</td><td>IAMポリシーと同じJSON形式。<code>iot:Connect</code>・<code>iot:Publish</code>・<code>iot:Subscribe</code>・<code>iot:Receive</code></td></tr>
+<tr><td>その他</td><td>ジョブ（ファームウェア更新）、フリートインデックス（検索）、Device Defender（監査・異常検知）</td><td>「数万台に一斉にファーム更新」→ IoT ジョブ</td></tr>
+</table></div>
+<div class="case"><div class="label">ユースケース：自分のトピックにしか書けないIoTポリシー</div>
+クライアントIDをモノの名前と一致させ、そのモノに関連付いた証明書でしか接続できないようにしたうえで、自分専用のトピックにだけ発行・購読を許す。1つのポリシーを全台で共有できる。
+<pre>{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": "iot:Connect",
+      "Resource": "arn:aws:iot:ap-northeast-1:123456789012:client/${iot:Connection.Thing.ThingName}",
+      "Condition": { "Bool": { "iot:Connection.Thing.IsAttached": "true" } } },
+    { "Effect": "Allow", "Action": "iot:Publish",
+      "Resource": "arn:aws:iot:ap-northeast-1:123456789012:topic/devices/${iot:Connection.Thing.ThingName}/telemetry" },
+    { "Effect": "Allow", "Action": ["iot:Subscribe"],
+      "Resource": "arn:aws:iot:ap-northeast-1:123456789012:topicfilter/devices/${iot:Connection.Thing.ThingName}/cmd" },
+    { "Effect": "Allow", "Action": ["iot:Receive"],
+      "Resource": "arn:aws:iot:ap-northeast-1:123456789012:topic/devices/${iot:Connection.Thing.ThingName}/cmd" }
+  ]
+}</pre>
+1台が乗っ取られても、他の機器のトピックには書き込めない。その証明書を<b>無効化（INACTIVE）または失効（REVOKED）</b>すれば、その1台だけを切り離せる。</div>
+
+<h3>X.509証明書と認証方式</h3>
+<div class="tbl"><table>
+<tr><th>観点</th><th>X.509クライアント証明書（相互TLS）</th><th>カスタムオーソライザー</th><th>Cognito ID（SigV4）</th><th>IAMユーザーのアクセスキー</th></tr>
+<tr><td>仕組み</td><td>機器が秘密鍵で署名し、証明書で身元を示す。IoT Coreも自分のサーバー証明書（Amazon Root CA）を示す</td><td>トークンやユーザー名・パスワードをLambdaで検証</td><td>モバイルアプリやブラウザがCognitoで一時認証情報を得てWebSocketで接続</td><td>長期キーでSigV4署名</td></tr>
+<tr><td>メリット</td><td>1台ごとに固有・秘密鍵が外に出ない・1台単位で失効できる。<b>IoT機器の標準</b></td><td>既存の独自認証基盤やトークン方式を流用できる</td><td>アプリの利用者ごとに権限を分けられる</td><td>設定が簡単</td></tr>
+<tr><td>デメリット</td><td>証明書の発行・配布・更新（ローテーション）の仕組みが必要</td><td>Lambdaの実装と運用が必要</td><td>機器（センサー）向きではない</td><td><b>機器への長期キー埋め込みはNG</b></td></tr>
+<tr><td>ユースケース例</td><td>工場出荷時に証明書を焼き込んだセンサー</td><td>既存のOAuthトークンを持つ端末をそのまま接続</td><td>スマホアプリで自宅の家電の状態を見る</td><td>（使わない）</td></tr>
+</table></div>
+<div class="tbl"><table>
+<tr><th>証明書の用意の仕方</th><th>内容</th><th>向く場面</th></tr>
+<tr><td>AWS IoT が鍵と証明書を生成</td><td>コンソールやAPI（CreateKeysAndCertificate）で1件ずつ作成</td><td>試作・少数台</td></tr>
+<tr><td>CSR から発行</td><td>機器内で鍵を作り、証明書署名要求（CSR）をAWS IoTのCAで署名</td><td>秘密鍵を機器の外に出したくない</td></tr>
+<tr><td><b>自社CAを登録＋JITP／JITR</b></td><td>自社（または製造委託先）のCAでデバイス証明書を発行しておき、CA証明書をIoT Coreに登録。<b>初回接続時に自動登録</b>（ジャストインタイムプロビジョニング）</td><td>工場で大量生産。出荷前にAWSへ1台ずつ登録しなくてよい</td></tr>
+<tr><td>フリートプロビジョニング（クレーム証明書）</td><td>全台共通の「仮の証明書」で最初に接続し、その場で固有の証明書を発行してもらう</td><td>製造ラインで固有の証明書を焼き込めない</td></tr>
+<tr><td>CAなしの複数アカウント登録</td><td>CAを登録せずにデバイス証明書だけを登録。同じ証明書を複数アカウント・リージョンで使える</td><td>リージョン移行やマルチアカウント運用</td></tr>
+</table></div>
+
+<div class="tip"><div class="label">試験のツボ</div><ul>
+<li>「数十万台のデバイス」「サーバー管理なし」「1台ごとに認証」→ <b>AWS IoT Core＋X.509証明書</b>。EC2に自前のMQTTブローカーを立てる選択肢は運用負荷で誤答。</li>
+<li>「既存のActiveMQ（MQTT/AMQP/JMS）を使う業務アプリをコード変更なしで移行」→ <b>Amazon MQ</b>。デバイス管理が主題なら IoT Core。</li>
+<li>「QoS 2（ちょうど1回）が必須」→ IoT Core は非対応。アプリ側で冪等にするか、QoS 2対応のブローカーを検討。</li>
+<li>「機器がオフラインでも状態を設定しておき、つながったら反映」→ <b>デバイスシャドウ</b>。</li>
+<li>「大量生産する機器を、出荷時にAWSへ登録せず初回接続で自動登録」→ <b>自社CAの登録＋JITP</b>（固有の証明書を焼けないならフリートプロビジョニング）。</li>
+<li>「受信データをそのまま分析基盤へ、コードなしで」→ <b>ルールエンジン</b>でFirehose/Kinesis/Timestreamへ。料金を抑えるならBasic Ingest。</li>
+<li>「1台が盗まれた」→ その証明書を無効化・失効。IoTポリシーの変数で、他の機器のトピックには最初から書けないようにしておく。</li>
+</ul></div>
+</article>
+
 <article class="chapter" data-id="cx1" data-code="付録A" data-group="付録" data-title="頻出サービス比較早見表" data-tasks="">
 <header><div class="code">APPENDIX A</div><h2>頻出サービス比較早見表</h2><p class="lede">選択肢で並びやすいペアを一気に見分ける。</p></header>
 <div class="tbl"><table>
@@ -1520,6 +1629,7 @@ figure.fig{margin:20px 0;border:1px solid var(--line);border-radius:6px;backgrou
 <tr><td>Parameter Store vs Secrets Manager</td><td>設定値・安価 → Parameter Store／自動ローテーション → Secrets Manager</td></tr>
 <tr><td>AD Connector vs Managed Microsoft AD vs Simple AD</td><td>クラウドに情報を置かない中継 → AD Connector／信頼関係・AD必須サービス → Managed AD／小規模・安価 → Simple AD</td></tr>
 <tr><td>IAM Identity Center vs IAMユーザー vs Cognito</td><td>社員が複数アカウントへSSO → Identity Center／緊急用のみ → IAMユーザー／アプリの顧客 → Cognito</td></tr>
+<tr><td>AWS IoT Core vs Amazon MQ vs 自前MQTTブローカー</td><td>大量のデバイス・証明書認証・デバイス管理 → IoT Core／既存ActiveMQアプリのコード変更なし移行 → Amazon MQ／EC2に自前構築 → 運用負荷で誤答になりやすい</td></tr>
 </table></div>
 </article>
 
