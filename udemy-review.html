@@ -128,6 +128,16 @@ input[type=search]{flex:1 1 180px;min-width:0}
 .why{margin-top:10px;background:var(--ng-soft);border-radius:4px;padding:8px 12px;font-size:.92rem}
 .why .lab{font-size:.74rem;font-weight:700;color:var(--ng);letter-spacing:.04em;display:block}
 .trapTag{font-size:.74rem;color:var(--ng);font-weight:600}
+.qbox{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.qbox summary{cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600}
+.qtext{white-space:pre-line;margin:8px 0;font-size:.93rem}
+.opts{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
+.opts li{display:grid;grid-template-columns:2em 1fr;gap:6px;border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:.9rem;white-space:pre-line;margin:0}
+.opts li .lt{font-family:var(--mono);font-weight:600}
+.opts li.ok{border-color:var(--ok);background:var(--ok-soft)}
+.opts li.pk{border-color:var(--ng);background:var(--ng-soft)}
+.opts li .tag{display:block;font-size:.72rem;font-weight:700;margin-top:2px}
+.opts li.ok .tag{color:var(--ok)}.opts li.pk .tag{color:var(--ng)}
 .empty{color:var(--muted);padding:20px 0}
 .note{font-size:.8rem;color:var(--muted);margin-top:28px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -252,6 +262,12 @@ function syncControls(){
   $('#selCat').value=state.cat;$('#selTrap').value=state.trap;$('#q').value=state.q;
 }
 function save(){try{localStorage.setItem('sapReviewFilter',JSON.stringify(state));}catch(e){}}
+function qbox(d){
+  const L='ABCDEF';
+  const lis=d.o.map((o,i)=>{const cls=o.c?'ok':(o.p?'pk':'');const tag=o.c&&o.p?'正解・自分の回答':o.c?'正解':o.p?'自分の回答（誤り）':'';
+    return `<li class="${cls}"><span class="lt">${L[i]}</span><span>${esc(o.x)}${tag?`<span class="tag">${tag}</span>`:''}</span></li>`;}).join('');
+  return `<details class="qbox"${d.ok?'':' open'}><summary>問題文と選択肢</summary><div class="qtext">${esc(d.q)}</div><ol class="opts">${lis}</ol></details>`;
+}
 function card(d){
   const L=d.ans.split(''), P=d.pick.split('');
   const ansHtml = '正解 <b>'+(L.join('・')||'—')+'</b>'+(d.ok?'':'／自分の回答 <s>'+(P.join('・')||'未回答')+'</s>');
@@ -259,6 +275,7 @@ function card(d){
   return `<article class="card${d.ok?'':' ng'}" id="q-${d.id}">
     <div class="top"><span class="qid">${d.id}</span><span class="pill ${d.ok?'ok':'ng'}">${d.ok?'正解':'不正解'}</span>${d.multi?'<span class="pill multi">複数選択</span>':''}<span class="t">${esc(d.t)}</span></div>
     <div class="meta"><span class="ans">${ansHtml}</span><span>${esc(DOMAINS[d.d])}</span><span>${esc(d.c)}</span></div>
+    ${d.q?qbox(d):''}
     <div class="chips">${d.s.map(s=>`<span class="chip">${esc(s)}</span>`).join('')}</div>
     <ul>${d.k.map(k=>`<li>${esc(k)}</li>`).join('')}</ul>
     ${d.w?`<div class="why"><span class="lab">誤答の分析${trap?`　<span class="trapTag">［${esc(trap.short)}］</span>`:''}</span>${esc(d.w)}</div>`:''}
@@ -267,7 +284,7 @@ function card(d){
 function render(){
   const q=state.q.trim().toLowerCase();
   const xs=DATA.filter(d=>(!state.ex||d.ex===state.ex)&&(state.res==='all'||(state.res==='ok')===d.ok)&&(!state.cat||d.c===state.cat)&&(!state.trap||d.trap===state.trap)
-    &&(!q||[d.id,d.t,d.c,d.w,...d.s,...d.k].join(' ').toLowerCase().includes(q)));
+    &&(!q||[d.id,d.t,d.c,d.w,d.q||'',...d.s,...d.k,...(d.o||[]).map(o=>o.x)].join(' ').toLowerCase().includes(q)));
   $('#count').textContent=`${xs.length}問を表示`;
   $('#list').innerHTML = xs.length? xs.map(card).join('') : '<p class="empty">条件に合う問題はありません。絞り込みを緩めてください。</p>';
 }
