@@ -106,7 +106,7 @@ ol.plan li b{display:block}
 
 /* filters */
 .filters{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:.85rem;padding:5px 11px;cursor:pointer}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -177,7 +177,15 @@ input[type=search]{flex:1 1 180px;min-width:0}
 .rbox .sub{font-size:.78rem;color:var(--muted)}
 .rbox .ids{font-size:.8rem;margin-top:6px}
 .rbox .ids a{font-family:var(--mono);text-decoration:none;margin-right:6px;white-space:nowrap}
-@media (max-width:640px){.rgrid{grid-template-columns:repeat(2,1fr)}}
+.rgrid.r5{grid-template-columns:repeat(5,1fr)}
+.rbox.all3{border-top-color:var(--ok);background:var(--ok-soft)}
+.pat{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:12px}
+.pat th,.pat td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.pat th{font-size:.78rem;color:var(--muted);font-weight:600}
+.pat td.mk{font-family:var(--mono);white-space:nowrap}
+.pat td.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+.pat td .ids a{font-family:var(--mono);text-decoration:none;margin-right:6px;white-space:nowrap}
+@media (max-width:640px){.rgrid,.rgrid.r5{grid-template-columns:repeat(2,1fr)}}
 .empty{color:var(--muted);padding:20px 0}
 .note{font-size:.8rem;color:var(--muted);margin-top:28px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -195,7 +203,9 @@ input[type=search]{flex:1 1 180px;min-width:0}
 
   <details class="sec" id="retry3"><summary><h2>演習1 3回目の振り返り</h2></summary>
   <p id="retry3Lead"></p>
-  <div class="rgrid" id="retry3Grid"></div>
+  <div class="rgrid r5" id="retry3Grid"></div>
+  <h3>1回目〜3回目の正誤パターン</h3>
+  <table class="pat" id="retry3Pat"></table>
   <h3>3回目でわかったこと</h3>
   <ol class="plan">
     <li><b>演習1は3回目で77%になり、目安の75%を初めて超えた</b>1回目49%（37問）→2回目63%（47問）→3回目77%（58問）です。2回目の誤答28問のうち22問を3回目で正解し、2回続けて間違えていた14問のうち12問も克服しました。</li>
@@ -313,11 +323,13 @@ input[type=search]{flex:1 1 180px;min-width:0}
     </div>
     <div class="seg" id="segRes" aria-label="正誤">
       <button type="button" data-v="all" aria-pressed="false">すべて</button>
-      <button type="button" data-v="both" aria-pressed="false">両方で誤答</button>
       <button type="button" data-v="any" aria-pressed="true">いずれかの回で誤答</button>
       <button type="button" data-v="ng1" aria-pressed="false">1回目で誤答</button>
       <button type="button" data-v="ng2" aria-pressed="false">2回目で誤答</button>
       <button type="button" data-v="ng3" aria-pressed="false">3回目で誤答（演習1）</button>
+      <button type="button" data-v="both" aria-pressed="false">1・2回目とも誤答</button>
+      <button type="button" data-v="ng2x" aria-pressed="false">2回誤答</button>
+      <button type="button" data-v="ng3x" aria-pressed="false">3回とも誤答</button>
     </div>
     <select id="selCat" aria-label="分野"><option value="">全分野</option></select>
     <select id="selTrap" aria-label="ミスの型"><option value="">全ミスの型</option></select>
@@ -376,7 +388,11 @@ const r3kind = d => !d.r3 ? '' : d.r2.ok ? (d.r3.ok?'keep':'regress') : (d.r3.ok
   const by=k=>xs.filter(d=>r3kind(d)===k);
   const ng2=xs.filter(d=>!d.r2.ok).length;
   $('#retry3Lead').textContent=`演習1（${xs.length}問）を3回目に解き直した結果、正解は${xs.filter(d=>d.ok).length}問→${xs.filter(d=>d.r2.ok).length}問→${xs.filter(d=>d.r3.ok).length}問と増えました。2回目の誤答${ng2}問のうち${by('fixed').length}問を克服した一方で、2回目に正解した問題を${by('regress').length}問落としています。3回とも正解したのは${xs.filter(d=>d.ok&&d.r2.ok&&d.r3.ok).length}問、3回とも誤答したのは${xs.filter(d=>!d.ok&&!d.r2.ok&&!d.r3.ok).length}問です。問題番号を押すと、その問題の解説に移動します。`;
-  $('#retry3Grid').innerHTML=['fixed','keep','still','regress'].map(k=>{const ys=by(k);
+  const all3=xs.filter(d=>d.ok&&d.r2.ok&&d.r3.ok);
+  $('#retry3Pat').innerHTML='<thead><tr><th>1回目→2回目→3回目</th><th>問題数</th><th>該当する問題</th></tr></thead><tbody>'+
+    [[1,1,1],[0,1,1],[1,0,1],[0,0,1],[1,1,0],[1,0,0],[0,1,0],[0,0,0]].map(p=>{const ys=xs.filter(d=>+d.ok===p[0]&&+d.r2.ok===p[1]&&+d.r3.ok===p[2]);
+      return `<tr><td class="mk">${p.map(v=>v?'○':'×').join(' → ')}</td><td class="num">${ys.length}問</td><td><span class="ids">${ys.map(d=>`<a href="#q-${d.id}" data-jump="${d.id}">${d.id}</a>`).join(' ')}</span></td></tr>`;}).join('')+'</tbody>';
+  $('#retry3Grid').innerHTML=`<div class="rbox all3"><div class="lbl">3回連続正解</div><div class="n">${all3.length}<span class="sub">問</span></div><div class="sub">1回目○ → 2回目○ → 3回目○</div></div>`+['fixed','keep','still','regress'].map(k=>{const ys=by(k);
     return `<div class="rbox ${k}"><div class="lbl">${R3[k].name}</div><div class="n">${ys.length}<span class="sub">問</span></div><div class="sub">${R3[k].sub}</div>${k==='still'||k==='regress'?`<div class="ids">${ys.map(d=>`<a href="#q-${d.id}" data-jump="${d.id}">${d.id}</a>`).join(' ')}</div>`:''}</div>`;}).join('');
 })();
 
@@ -436,7 +452,8 @@ bars($('#fmtBars'), group(d=>d.multi?'複数選択':'単一選択'), AVG);
 })();
 
 // filters
-const RES={all:()=>true,both:d=>!d.ok&&d.r2&&!d.r2.ok,any:d=>!d.ok||(d.r2&&!d.r2.ok)||(d.r3&&!d.r3.ok),ng1:d=>!d.ok,ng2:d=>d.r2&&!d.r2.ok,ng3:d=>d.r3&&!d.r3.ok};
+const nNg=d=>(!d.ok)+(d.r2&&!d.r2.ok?1:0)+(d.r3&&!d.r3.ok?1:0);
+const RES={all:()=>true,both:d=>!d.ok&&d.r2&&!d.r2.ok,ng2x:d=>nNg(d)===2,ng3x:d=>nNg(d)===3,any:d=>!d.ok||(d.r2&&!d.r2.ok)||(d.r3&&!d.r3.ok),ng1:d=>!d.ok,ng2:d=>d.r2&&!d.r2.ok,ng3:d=>d.r3&&!d.r3.ok};
 const state={ex:0,res:'any',cat:'',trap:'',q:''};
 try{const s=JSON.parse(localStorage.getItem('sapReviewFilter2')||'null');if(s)Object.assign(state,s);}catch(e){}
 if(!RES[state.res])state.res='any';
