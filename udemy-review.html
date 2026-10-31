@@ -41,6 +41,10 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,su
 h1,h2,h3{text-wrap:balance;line-height:1.35;margin:0}
 h1{font-size:1.75rem;font-weight:700}
 h2{font-size:1.3rem;font-weight:700;margin-block:40px 14px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
+details.sec>summary{cursor:pointer;list-style:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary h2::before{content:"▸ ";color:var(--accent)}
+details.sec[open]>summary h2::before{content:"▾ "}
 h3{font-size:1.02rem;font-weight:700;margin-block:22px 8px}
 p{margin:0 0 10px;max-width:68ch}
 .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -199,7 +203,7 @@ input[type=search]{flex:1 1 180px;min-width:0}
     <li><b>ドメイン3（既存ソリューションの継続的改善）は2回目も誤答率37%で最も高い</b>他のドメインは24〜32%です。「原因はどこか」を先に特定してから選択肢を見る習慣を続けてください。</li>
   </ol>
 
-  <h2 id="analysis">弱点の分析（1回目）</h2>
+  <details class="sec" id="analysis"><summary><h2>弱点の分析（1回目）</h2></summary>
   <p>1回目の誤答をサービス分野・試験ドメイン・ミスの型の3つの軸で集計しました。棒の長さは誤答率で、縦線は全体平均（51%）です。</p>
   <div class="twocol">
     <div>
@@ -216,7 +220,9 @@ input[type=search]{flex:1 1 180px;min-width:0}
     </div>
   </div>
 
-  <h2 id="analysis2">弱点の分析（2回目）</h2>
+  </details>
+
+  <details class="sec" id="analysis2"><summary><h2>弱点の分析（2回目）</h2></summary>
   <p>同じ300問を2回目の正誤で集計し直しました。棒が2回目の誤答率、四角い印が1回目の誤答率、縦線は2回目の全体平均（<span id="avg2"></span>%）です。棒が印より左にあれば改善、右にはみ出していれば悪化です。</p>
   <div class="twocol">
     <div>
@@ -242,6 +248,8 @@ input[type=search]{flex:1 1 180px;min-width:0}
     <li><b>「実在しない機能」だけは1回目も2回目も32問で、まったく減っていない</b>ほかの型が半分以下に減ったため、2回目は誤答の3分の1を占める最大の型になりました。「似た機能の取り違え」（45→26問）と「条件の読み落とし」（22→17問）がこれに続きます。過剰設計・原因と対策のずれ・プロトコル不一致はほぼ解消しました。</li>
     <li><b>複数選択（35%）のほうが単一選択（30%）より少し高い</b>1回目はほぼ同じでしたが、2回目は差が開きました。前の節の「正解の一部は選べて残りの1つで落とす」パターンが原因です。</li>
   </ol>
+
+  </details>
 
   <h2 id="traps">ミスの型（誤答152問の内訳）</h2>
   <p>誤答の1問ずつについて「なぜその選択肢を選んだか」を6つの型に分けました。上の型ほど件数が多く、対策の効果も大きくなります。問題番号を押すと、その問題の解説に移動します。</p>
