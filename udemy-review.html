@@ -190,7 +190,7 @@ input[type=search]{flex:1 1 180px;min-width:0}
   <div class="scores" id="scores"></div>
   <p class="gap" id="gapline"></p>
 
-  <h2 id="retry">2回目の振り返り（演習1〜4）</h2>
+  <details class="sec" id="retry"><summary><h2>2回目の振り返り（演習1〜4）</h2></summary>
   <p id="retryLead"></p>
   <div class="rgrid" id="retryGrid"></div>
   <h3>2回目でわかったこと</h3>
@@ -202,6 +202,8 @@ input[type=search]{flex:1 1 180px;min-width:0}
     <li><b>複数選択で、正解の一部は選べて残りの1つで落とすパターンが20問</b>確信のある選択肢を選んだあと、残りの選択肢にも実在しない機能が混ざっていないかを確かめてください。</li>
     <li><b>ドメイン3（既存ソリューションの継続的改善）は2回目も誤答率37%で最も高い</b>他のドメインは24〜32%です。「原因はどこか」を先に特定してから選択肢を見る習慣を続けてください。</li>
   </ol>
+
+  </details>
 
   <details class="sec" id="analysis"><summary><h2>弱点の分析（1回目）</h2></summary>
   <p>1回目の誤答をサービス分野・試験ドメイン・ミスの型の3つの軸で集計しました。棒の長さは誤答率で、縦線は全体平均（51%）です。</p>
@@ -251,11 +253,13 @@ input[type=search]{flex:1 1 180px;min-width:0}
 
   </details>
 
-  <h2 id="traps">ミスの型（誤答152問の内訳）</h2>
+  <details class="sec" id="traps"><summary><h2>ミスの型（誤答152問の内訳）</h2></summary>
   <p>誤答の1問ずつについて「なぜその選択肢を選んだか」を6つの型に分けました。上の型ほど件数が多く、対策の効果も大きくなります。問題番号を押すと、その問題の解説に移動します。</p>
   <div class="traps" id="trapList"></div>
 
-  <h2 id="plan">復習の優先順位</h2>
+  </details>
+
+  <details class="sec" id="plan"><summary><h2>復習の優先順位</h2></summary>
   <ol class="plan">
     <li><b>「存在しない機能」の一覧を覚える</b>上の「実在しない機能・構成を選んだ」の一覧表を、試験の前日まで繰り返し見直してください。選択肢を1つ消すだけで、4択が3択になります。</li>
     <li><b>セキュリティとネットワークの境界条件を固める</b>誤答の数が最も多い2分野です。KMSのキーの種類、SCPの評価、VPCピアリング・TGW・DXGW・PrivateLinkの使い分けは、合格道場の教科書の1章と2章で復習してください。</li>
@@ -263,6 +267,8 @@ input[type=search]{flex:1 1 180px;min-width:0}
     <li><b>ドメイン3（既存ソリューションの継続的改善）の演習を増やす</b>誤答率が58%で最も高いドメインです。「原因はどこか」を先に特定してから選択肢を見る習慣をつけてください。</li>
     <li><b>「最小の運用負荷」の問題では、作り込みを含む選択肢を疑う</b>Lambda＋Athenaの自前集計や、EC2での冗長化を選んだ問題が目立ちます。専用のマネージド機能が無いかを先に考えてください。</li>
   </ol>
+
+  </details>
 
   <h2 id="book">参考書（300問）</h2>
   <div class="filters" role="search">
