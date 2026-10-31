@@ -355,7 +355,7 @@ bars($('#fmtBars'), group(d=>d.multi?'複数選択':'単一選択'), AVG);
     const ids2 = DATA.filter(d=>d.r2&&d.r2.trap===t.key).map(d=>d.id);
     return `<article class="trap" id="trap-${t.key}"><header><h3>${esc(t.name)}</h3><span class="cnt">${ids.length}問</span></header>
       <p>${t.desc}</p>
-      ${t.table?`<details${t.open?' open':''}><summary>${esc(t.tableTitle)}</summary><div class="tbl">${t.table}</div></details>`:''}
+      ${t.table?`<details><summary>${esc(t.tableTitle)}</summary><div class="tbl">${t.table}</div></details>`:''}
       <p class="ids">該当：${ids.map(i=>`<a href="#q-${i}" data-jump="${i}">${i}</a>`).join(" ")}</p>
       ${ids2.length?`<p class="ids">2回目（${ids2.length}問）：${ids2.map(i=>`<a href="#q-${i}" data-jump="${i}">${i}</a>`).join(" ")}</p>`:''}</article>`;
   }).join('');
