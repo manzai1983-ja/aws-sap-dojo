@@ -336,7 +336,6 @@ input[type=search]{flex:1 1 180px;min-width:0}
       <button type="button" data-v="ng2" aria-pressed="false">2回目で誤答</button>
       <button type="button" data-v="ng3" aria-pressed="false">3回目で誤答（演習1・2）</button>
       <button type="button" data-v="guess3" aria-pressed="false">3回目は勘で正解</button>
-      <button type="button" data-v="both" aria-pressed="false">1・2回目とも誤答</button>
       <button type="button" data-v="ng2x" aria-pressed="false">2回誤答</button>
       <button type="button" data-v="ng3x" aria-pressed="false">3回とも誤答</button>
     </div>
@@ -465,7 +464,7 @@ bars($('#fmtBars'), group(d=>d.multi?'複数選択':'単一選択'), AVG);
 
 // filters
 const nNg=d=>(!d.ok)+(d.r2&&!d.r2.ok?1:0)+(d.r3&&!d.r3.ok?1:0);
-const RES={all:()=>true,both:d=>!d.ok&&d.r2&&!d.r2.ok,ng2x:d=>nNg(d)===2,ng3x:d=>nNg(d)===3,any:d=>!d.ok||(d.r2&&!d.r2.ok)||(d.r3&&!d.r3.ok),ng1:d=>!d.ok,ng2:d=>d.r2&&!d.r2.ok,ng3:d=>d.r3&&!d.r3.ok,guess3:d=>d.r3&&d.r3.ok&&d.r3.guess};
+const RES={all:()=>true,ng2x:d=>nNg(d)===2,ng3x:d=>nNg(d)===3,any:d=>!d.ok||(d.r2&&!d.r2.ok)||(d.r3&&!d.r3.ok),ng1:d=>!d.ok,ng2:d=>d.r2&&!d.r2.ok,ng3:d=>d.r3&&!d.r3.ok,guess3:d=>d.r3&&d.r3.ok&&d.r3.guess};
 const state={ex:0,res:'any',cat:'',trap:'',q:''};
 try{const s=JSON.parse(localStorage.getItem('sapReviewFilter2')||'null');if(s)Object.assign(state,s);}catch(e){}
 if(!RES[state.res])state.res='any';
