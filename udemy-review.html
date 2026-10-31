@@ -69,6 +69,8 @@ p{margin:0 0 10px;max-width:68ch}
 .track .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
 .brow .v{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;color:var(--muted);font-size:.82rem}
 .brow:hover .fill{filter:brightness(1.15)}
+.track .was{position:absolute;top:2px;bottom:2px;width:8px;margin-left:-4px;border:2px solid var(--ink);border-radius:2px;opacity:.45;background:transparent}
+.legend s{display:inline-block;width:8px;height:8px;vertical-align:-1px;margin-right:4px;border:2px solid var(--ink);border-radius:2px;opacity:.45}
 .legend{font-size:.78rem;color:var(--muted);margin-top:6px;display:flex;gap:16px;flex-wrap:wrap}
 .legend i{display:inline-block;width:12px;height:10px;vertical-align:-1px;margin-right:4px;background:var(--bar);border-radius:2px}
 .legend b{display:inline-block;width:2px;height:12px;vertical-align:-2px;margin-right:6px;background:var(--ink);opacity:.55}
@@ -214,6 +216,33 @@ input[type=search]{flex:1 1 180px;min-width:0}
     </div>
   </div>
 
+  <h2 id="analysis2">弱点の分析（2回目）</h2>
+  <p>同じ300問を2回目の正誤で集計し直しました。棒が2回目の誤答率、四角い印が1回目の誤答率、縦線は2回目の全体平均（<span id="avg2"></span>%）です。棒が印より左にあれば改善、右にはみ出していれば悪化です。</p>
+  <div class="twocol">
+    <div>
+      <h3>分野別の誤答率</h3>
+      <div class="bars" id="catBars2" role="list"></div>
+    </div>
+    <div>
+      <h3>試験ドメイン別の誤答率</h3>
+      <div class="bars" id="domBars2" role="list"></div>
+      <div class="legend"><span><i></i>2回目の誤答率</span><span><s></s>1回目</span><span><b></b>2回目の全体平均</span></div>
+      <h3>単一選択と複数選択</h3>
+      <div class="bars" id="fmtBars2" role="list"></div>
+      <h3>ミスの型の内訳（誤答に占める割合）</h3>
+      <div class="bars" id="trapBars2" role="list"></div>
+    </div>
+  </div>
+  <h3>2回目の弱点から言えること</h3>
+  <ol class="plan">
+    <li><b>データベースとデータ分析は2回目も誤答率が下がっていない</b>データベースは1回目56%から2回目67%（9問中6問）に悪化し、全分野で最も高くなりました。データ分析も56%のままです。問題数は少ないものの、ほかの分野がほぼ改善している中で取り残されています。Aurora・DynamoDB・Redshift・Athena・Kinesisの使い分けを教科書で見直してください。</li>
+    <li><b>ID・アクセス管理（47%）とガバナンス・組織（26%→32%）も改善していない</b>ガバナンス・組織は、1回目より2回目のほうが誤答が多い唯一の大きな分野です。SCP・Control Tower・Identity Centerの「どこまで効くか」が固まっていません。</li>
+    <li><b>セキュリティ・ネットワーク・DRは大きく改善した</b>セキュリティ・暗号化は63%→34%、ネットワークは43%→20%、DR・高可用性は45%→21%です。1回目の最優先課題だった分野は、復習の効果が出ています。</li>
+    <li><b>ドメイン3は2回目も最も高い（37%）</b>改善幅は21ポイントありますが、2回目の誤答94問のうち38問がドメイン3です。104問と出題数も最多なので、ここを30%以下にできるかが合否を分けます。</li>
+    <li><b>「実在しない機能」だけは1回目も2回目も32問で、まったく減っていない</b>ほかの型が半分以下に減ったため、2回目は誤答の3分の1を占める最大の型になりました。「似た機能の取り違え」（45→26問）と「条件の読み落とし」（22→17問）がこれに続きます。過剰設計・原因と対策のずれ・プロトコル不一致はほぼ解消しました。</li>
+    <li><b>複数選択（35%）のほうが単一選択（30%）より少し高い</b>1回目はほぼ同じでしたが、2回目は差が開きました。前の節の「正解の一部は選べて残りの1つで落とす」パターンが原因です。</li>
+  </ol>
+
   <h2 id="traps">ミスの型（誤答152問の内訳）</h2>
   <p>誤答の1問ずつについて「なぜその選択肢を選んだか」を6つの型に分けました。上の型ほど件数が多く、対策の効果も大きくなります。問題番号を押すと、その問題の解説に移動します。</p>
   <div class="traps" id="trapList"></div>
@@ -295,8 +324,9 @@ const r2kind = d => !d.r2 ? '' : d.ok ? (d.r2.ok?'keep':'regress') : (d.r2.ok?'f
 // bars
 function bars(el, rows, avg){
   el.innerHTML = rows.map(r=>{
-    const p=pct(r.ng,r.n);
-    return `<div class="brow" role="listitem" title="${esc(r.name)}：${r.n}問中 ${r.ng}問誤答（${p}%）"><span class="name">${esc(r.name)}</span><span class="track"><span class="fill" style="width:${p}%"></span><span class="tick" style="left:${avg}%"></span></span><span class="v">${p}%（${r.ng}/${r.n}）</span></div>`;
+    const p=pct(r.ng,r.n), w=r.ng0!=null?pct(r.ng0,r.n0||r.n):null;
+    const tip=r.unit?`${esc(r.name)}：誤答${r.n}問中 ${r.ng}問（${p}%）${w!=null?`／1回目 ${r.n0}問中 ${r.ng0}問（${w}%）`:''}`:`${esc(r.name)}：${r.n}問中 ${r.ng}問誤答（${p}%）${w!=null?`／1回目 ${r.ng0}問（${w}%）`:''}`;
+    return `<div class="brow" role="listitem" title="${tip}"><span class="name">${esc(r.name)}</span><span class="track"><span class="fill" style="width:${p}%"></span>${w!=null?`<span class="was" style="left:${w}%"></span>`:''}${avg!=null?`<span class="tick" style="left:${avg}%"></span>`:''}</span><span class="v">${p}%（${r.ng}/${r.n}）</span></div>`;
   }).join('');
 }
 const AVG = pct(DATA.filter(d=>!d.ok).length, DATA.length);
@@ -304,6 +334,19 @@ function group(key){const m={};for(const d of DATA){const k=key(d);m[k]=m[k]||{n
 bars($('#catBars'), group(d=>d.c).filter(r=>r.n>=4).sort((a,b)=>b.ng-a.ng||b.n-a.n), AVG);
 bars($('#domBars'), group(d=>DOMAINS[d.d]).sort((a,b)=>a.name.localeCompare(b.name)), AVG);
 bars($('#fmtBars'), group(d=>d.multi?'複数選択':'単一選択'), AVG);
+
+// bars (2nd attempt)
+(function(){
+  const xs=DATA.filter(d=>d.r2), ng2=d=>!d.r2.ok;
+  const avg2=pct(xs.filter(ng2).length, xs.length);
+  $('#avg2').textContent=avg2;
+  function group2(key){const m={};for(const d of xs){const k=key(d);m[k]=m[k]||{name:k,n:0,ng:0,ng0:0};m[k].n++;if(ng2(d))m[k].ng++;if(!d.ok)m[k].ng0++;}return Object.values(m);}
+  bars($('#catBars2'), group2(d=>d.c).filter(r=>r.n>=4).sort((a,b)=>b.ng/b.n-a.ng/a.n||b.n-a.n), avg2);
+  bars($('#domBars2'), group2(d=>DOMAINS[d.d]).sort((a,b)=>a.name.localeCompare(b.name)), avg2);
+  bars($('#fmtBars2'), group2(d=>d.multi?'複数選択':'単一選択'), avg2);
+  const n1=xs.filter(d=>!d.ok).length, n2=xs.filter(ng2).length;
+  bars($('#trapBars2'), TRAPS.map(t=>({name:t.short,unit:1,n:n2,ng:xs.filter(d=>ng2(d)&&d.r2.trap===t.key).length,n0:n1,ng0:xs.filter(d=>!d.ok&&d.trap===t.key).length})).sort((a,b)=>b.ng-a.ng), null);
+})();
 
 // traps
 (function(){
